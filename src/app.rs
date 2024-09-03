@@ -1,9 +1,12 @@
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
+// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TemplateApp {
-    // Example stuff:
-    label: String,
+    #[serde(skip)]
+    debug_label: String,
+
+    #[serde(skip)]
+    selected_process_index: i8,
 
     #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
@@ -13,7 +16,8 @@ impl Default for TemplateApp {
     fn default() -> Self {
         Self {
             // Example stuff:
-            label: "Hello World!".to_owned(),
+            debug_label: "Hello World!".to_owned(),
+            selected_process_index: -1,
             value: 2.7,
         }
     }
@@ -67,43 +71,84 @@ impl eframe::App for TemplateApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
+            egui::Grid::new("grid_primary").min_col_width(0.0).show(ui, |ui| {
+                ui.vertical(|ui| {
+                    ui.heading("Volume control");
+                    ui.style_mut().spacing.item_spacing = egui::vec2(7.5, 8.0);
+                    ui.add(egui::Slider::new(&mut self.value, 0.01..=1.00).max_decimals(2).text("Not in game"));
+                    ui.add(egui::Slider::new(&mut self.value, 0.00..=1.00).max_decimals(2).text("In game: Buy phase"));
+                    ui.add(egui::Slider::new(&mut self.value, 0.00..=1.00).max_decimals(2).text("In game: Playing"));
+                    ui.add(egui::Slider::new(&mut self.value, 0.00..=1.00).max_decimals(2).text("In game: Dead"));
+                });
+                ui.add(egui::Separator::default().vertical());
+                ui.vertical(|ui| {
+                    ui.heading("Process selection");
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
+                    ui.style_mut().spacing.item_spacing = egui::vec2(0.0, 10.0);
+                    egui_extras::TableBuilder::new(ui)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .column(egui_extras::Column::initial(250.0))
+                    .striped(true)
+                    .sense(egui::Sense::click())
+                    .min_scrolled_height(0.0)
+                    .max_scroll_height(75.0)
+                    .body(|mut body| {
+                        let number_of_processes = 30;
+                        for i in 0..number_of_processes {
+                            body.row(25.0, |mut row| {
+                                let mut label_clicked = false;
+
+                                row.set_selected(self.selected_process_index == i);
+                                row.col(|ui| {
+                                    let label = ui.add_sized(ui.available_size(), egui::Label::new("prueba123456789012345678901234567890").sense(egui::Sense::click()));
+                                    label_clicked = label.clicked();
+                                    label.on_hover_cursor(egui::CursorIcon::PointingHand);
+                                });
+                                
+                                row.response().on_hover_cursor(egui::CursorIcon::PointingHand);
+                                if row.response().clicked() || label_clicked {
+                                    self.debug_label = format!("TODO: Row {} clicked", i);
+                                    self.selected_process_index = i;
+                                }
+                            });
+                        }
+                    });
+
+                    if ui.add_sized((ui.available_width(), 0.0), egui::Button::new("Update process list")).clicked() {
+                        self.debug_label = "TODO: Update process list".to_string();
+                    }
+                    
+                });
+                ui.end_row();
             });
 
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
-            }
-
-            ui.separator();
-
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                ui.label(self.debug_label.clone());
+                ui.checkbox(&mut false, "Simulate test");
+                if ui.add_sized((ui.available_width(), 30.0), egui::Button::new("Activate")).clicked() {
+                    self.debug_label = "TODO: Button activated".to_string();
+                }
             });
         });
     }
 }
 
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
-}
+/* TODO list:
+ * - [X] Aplicar el diseño pensado
+ * - [ ] Adaptar el código del programa CLI a la interfaz gráfica
+ *     - [ ] El proceso ahora se obtiene de la lista de procesos, al seleccionar uno, el botón de activar programa se pone enabled (disabled por defecto)
+ *         - [ ] Hay un botón para actualizar la lista de procesos
+ *     - [ ] El handler de CTRL+C ahora se elimina y el código que tenía ahora se ejecuta al salir del programa
+ *     - [ ] La funcionalidad principal ahora se ejecuta al hacer click en el botón de activar programa, no al abrir la GUI
+ *         - [ ] Al activar el programa, se hace uso de un nuevo hilo para ejecutar el programa ya que es un loop infinito
+ *         - [ ] El texto del botón cambia a "Desactivar programa" y al pulsarlo, el hilo nuevo se muere
+ *         - [ ] No se puede cambiar de proceso ni cambiar los volúmenes mientras el programa está activo
+ *     - [ ] Los volúmenes ahora son editables, recordar que el volumen "NOT_IN_GAME" no puede ser cero
+ *     - [ ] El label de los volúmenes a ser posible que se muestre como porcentaje
+ * - [ ] El test utilizado en el CLI se implementa como comprobador de que el programa funciona correctamente con una checkbox debajo del botón de activar (o en el menú de opciones)
+ *     - [ ] Al pulsar la checkbox, el botón ahora pone simular en vez de activar y al pulsarlo, se ejecuta el test y no se puede detener manualmente por lo que se desactiva el botón
+ *     - [ ] En el nombre del botón, mientras se está simulando, se explica en qué estado se está (por ejemplo, "Simulando: Fase de compra")
+ *     - [ ] Al terminar el test, sale un dialog explicando que si se ha escuchado como cambiaba el volumen y si se ha pausado/reaunudado correctamente el video/música al tener el volumen a 0, está todo correcto
+ * - [ ] En el menú de opciones, añadir una opción para ver los créditos e información (sección "Help")
+ * - [ ] Cambiar el icono del programa
+ */
