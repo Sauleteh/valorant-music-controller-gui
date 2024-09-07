@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicBool;
+use std::{sync::{atomic::AtomicBool, mpsc}, thread};
 
 use windows_volume_control::{AudioController, CoinitMode};
 use stoppable_thread::{self, SimpleAtomicBool};
@@ -32,7 +32,7 @@ pub struct TemplateApp {
     #[serde(skip)]
     program_thread: Option<stoppable_thread::StoppableHandle<()>>,
     #[serde(skip)]
-    stop_thread: bool,
+    receiver: Option<mpsc::Receiver<()>>,
 
     volumes: [f32; 3],
 }
@@ -61,7 +61,7 @@ impl Default for TemplateApp {
             simulation_checked: false,
 
             program_thread: None,
-            stop_thread: false,
+            receiver: None,
 
             volumes: [1.00, 0.50, 0.00],
         }
@@ -92,9 +92,6 @@ impl eframe::App for TemplateApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
 
@@ -155,7 +152,8 @@ impl eframe::App for TemplateApp {
                                         self.debug_label = format!("TODO: Row {} clicked", i);
                                         self.selected_process_index = i;
                                         self.button_enabled = true;
-                                        self.button_label = "Activate program".to_string();
+                                        self.button_label = get_activate_button_label(self.simulation_checked);
+                                        self.initial_process_volume = unsafe { self.audio_controller.get_session_by_name(self.process_list[i as usize].clone()).unwrap().getVolume() };
                                     }
                                 }
                             });
@@ -179,38 +177,74 @@ impl eframe::App for TemplateApp {
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.label(self.debug_label.clone());
-                ui.checkbox(&mut self.simulation_checked, "Simulate test");
+                if ui.checkbox(&mut self.simulation_checked, "Simulate test").clicked() {
+                    // Si el programa está preparado para simular y se pulsa sobre la checkbox, se fuerza el cambio del texto del botón
+                    if self.button_label == "Activate program" || self.button_label == "Simulate a match" {
+                        self.button_label = get_activate_button_label(self.simulation_checked);
+                    }
+                }
                 
                 if ui.add_enabled(self.button_enabled, egui::Button::new(self.button_label.clone()).min_size(egui::vec2(ui.available_width(), 30.0))).clicked() {
                     self.debug_label = "TODO: Button activated".to_string();
                     self.program_active = !self.program_active;
                     if self.program_active { // Se activó el programa
-                        let process_name = self.process_list[self.selected_process_index as usize].clone();
-                        let volumes = self.volumes.clone();
-                        self.program_thread = Some(stoppable_thread::spawn(move |should_stop| { // Crear un nuevo hilo para ejecutar el programa
-                            functions::main_function(should_stop, process_name, volumes);
-                        }));
-                        self.button_label = "Deactivate program".to_owned();
+                        if self.simulation_checked {
+                            let process_name = self.process_list[self.selected_process_index as usize].clone();
+                            let volumes = self.volumes.clone();
+                            
+                            let (tx, rx) = mpsc::channel(); // Canal para comunicarse con el hilo secundario
+                            self.receiver = Some(rx); // Guardamos el receptor
+
+                            self.button_label = "Simulating...".to_owned();
+                            self.button_enabled = false;
+
+                            thread::spawn(move || {
+                                functions::simulate_match(process_name, volumes);
+                                tx.send(()).unwrap();
+                            });
+                        }
+                        else {
+                            let process_name = self.process_list[self.selected_process_index as usize].clone();
+                            let volumes = self.volumes.clone();
+                            self.program_thread = Some(stoppable_thread::spawn(move |should_stop| { // Crear un nuevo hilo para ejecutar el programa
+                                functions::main_function(should_stop, process_name, volumes);
+                            }));
+                            self.button_label = "Stop program".to_owned();
+                        }
                     }
                     else { // Se desactivó el programa
                         self.button_label = "Stopping program...".to_owned();
                         self.button_enabled = false;
-                        self.stop_thread = true;
+                        // FIXME: Adaptar el hilo para que funcione con el nuevo sistema (el de la simulación)
                         self.program_thread.take().unwrap().stop().join().unwrap(); // Esperar a que el hilo termine
-                        self.button_label = "Activate program".to_owned();
+                        self.button_label = get_activate_button_label(self.simulation_checked);
                         self.button_enabled = true;
-                        self.stop_thread = false;
+                        unsafe { // Restaurar el volumen del proceso
+                            self.audio_controller.get_session_by_name(self.process_list[self.selected_process_index as usize].clone()).unwrap().setVolume(self.initial_process_volume);
+                        }
                     }
                 }
             });
         });
+
+        if let Some(ref rx) = self.receiver {
+            if let Ok(_) = rx.try_recv() { // Si el hilo secundario terminó la simulación...
+                self.button_label = get_activate_button_label(self.simulation_checked);
+                self.button_enabled = true;
+                self.program_active = false;
+            }
+        }
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        // TODO: Código que se ejecuta al cerrar la aplicación
         if self.selected_process_index != -1 {
-            unsafe {
-                self.audio_controller.get_session_by_name(self.process_list[self.selected_process_index as usize].clone()).unwrap().setVolume(self.initial_process_volume);
+            unsafe { // Si se cierra la app con el programa en ejecución, se para el programa y se restaura el volumen del proceso
+                if let Some(_) = self.program_thread {
+                    self.button_label = "Stopping program...".to_owned();
+                    self.button_enabled = false;
+                    self.program_thread.take().unwrap().stop().join().unwrap(); // Esperar a que el hilo termine
+                    self.audio_controller.get_session_by_name(self.process_list[self.selected_process_index as usize].clone()).unwrap().setVolume(self.initial_process_volume);
+                }
             }
         }
     }
@@ -223,6 +257,12 @@ fn get_process_list(controller: &mut AudioController) -> Vec<String> {
         controller.GetAllProcessSessions();
         return controller.get_all_session_names();
     }
+}
+
+// Retorna el nombre del botón cuando está disponible para ser activado; sin embargo, tiene dos posibles nombres, dependiendo de si se quiere simular o no
+fn get_activate_button_label(simulating: bool) -> String {
+    if simulating { return "Simulate a match".to_owned(); }
+    else { return "Activate program".to_owned(); }
 }
 
 /* TODO list:
@@ -238,8 +278,8 @@ fn get_process_list(controller: &mut AudioController) -> Vec<String> {
  *     - [ ] Los volúmenes ahora son editables, recordar que el volumen "NOT_IN_GAME" no puede ser cero
  *     - [ ] El label de los volúmenes a ser posible que se muestre como porcentaje
  * - [ ] El test utilizado en el CLI se implementa como comprobador de que el programa funciona correctamente con una checkbox debajo del botón de activar (o en el menú de opciones)
- *     - [ ] Al pulsar la checkbox, el botón ahora pone simular en vez de activar y al pulsarlo, se ejecuta el test y no se puede detener manualmente por lo que se desactiva el botón
- *     - [ ] En el nombre del botón, mientras se está simulando, se explica en qué estado se está (por ejemplo, "Simulando: Fase de compra")
+ *     - [X] Al pulsar la checkbox, el botón ahora pone simular en vez de activar y al pulsarlo, se ejecuta el test y no se puede detener manualmente por lo que se desactiva el botón
+ *     - [-] En el nombre del botón, mientras se está simulando, se explica en qué estado se está (por ejemplo, "Simulando: Fase de compra")
  *     - [ ] Al terminar el test, sale un dialog explicando que si se ha escuchado como cambiaba el volumen y si se ha pausado/reaunudado correctamente el video/música al tener el volumen a 0, está todo correcto
  * - [ ] En el menú de opciones, añadir una opción para ver los créditos e información (sección "Help")
  * - [ ] Cambiar el icono del programa
