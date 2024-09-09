@@ -170,7 +170,6 @@ impl eframe::App for TemplateApp {
                             self.button_label = "Select a process".to_owned();
                         }
                     }
-                    
                 });
                 ui.end_row();
             });
@@ -227,11 +226,24 @@ impl eframe::App for TemplateApp {
             });
         });
 
+        // Receptor de mensajes del hilo secundario
         if let Some(ref rx) = self.receiver {
             if let Ok(_) = rx.try_recv() { // Si el hilo secundario terminó la simulación...
                 self.button_label = get_activate_button_label(self.simulation_checked);
                 self.button_enabled = true;
                 self.program_active = false;
+
+                let dialog = egui_modal::Modal::new(ctx, "dialog_simulation_finished");
+                dialog.show(|ui| {
+                    dialog.title(ui, "Simulation finished");
+                    dialog.frame(ui, |ui| {
+                        dialog.body(ui, "The simulation has finished. Please, check if the volume has changed correctly and if the media has been paused/resumed correctly.");
+                    });
+                    dialog.buttons(ui, |ui| {
+                        dialog.button(ui, "Close");
+                    });
+                });
+                dialog.open();
             }
         }
     }
