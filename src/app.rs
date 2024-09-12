@@ -92,16 +92,19 @@ impl eframe::App for TemplateApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let dialog = egui_modal::Modal::new(ctx, "dialog_simulation");
-        dialog.show(|ui| {
-            dialog.title(ui, "Simulation finished");
-            dialog.frame(ui, |ui| {
-                dialog.body(ui, "The simulation has finished. Please, check if the volume has changed correctly and if the media has been paused/resumed correctly.");
-            });
-            dialog.buttons(ui, |ui| {
-                dialog.button(ui, "Close");
-            });
-        });
+        let sim_dialog = create_dialog(
+            ctx,
+            "dialog_simulation".to_owned(),
+            "Simulation finished".to_owned(),
+            "The simulation has finished. Please, check if the volume has changed correctly and if the media has been paused/resumed correctly.".to_owned()
+        );
+
+        let about_dialog = create_dialog(
+            ctx,
+            "dialog_about".to_owned(),
+            "About this program".to_owned(),
+            "Program made by TODO:".to_owned()
+        );
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -115,10 +118,15 @@ impl eframe::App for TemplateApp {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                     });
+                    ui.menu_button("Help", |ui| {
+                        if ui.button("About").clicked() {
+
+                        }
+                    });
                     ui.add_space(16.0);
                 }
 
-                egui::widgets::global_dark_light_mode_buttons(ui);
+                egui::widgets::global_dark_light_mode_switch(ui);
             });
         });
 
@@ -243,7 +251,7 @@ impl eframe::App for TemplateApp {
                 self.button_label = get_activate_button_label(self.simulation_checked);
                 self.button_enabled = true;
                 self.program_active = false;
-                dialog.open();
+                sim_dialog.open();
             }
         }
     }
@@ -277,22 +285,37 @@ fn get_activate_button_label(simulating: bool) -> String {
     else { return "Activate program".to_owned(); }
 }
 
+fn create_dialog(ctx: &egui::Context, id: String, title: String, body: String) -> egui_modal::Modal {
+    let dialog = egui_modal::Modal::new(ctx, id);
+    dialog.show(|ui| {
+        dialog.title(ui, title);
+        dialog.frame(ui, |ui| {
+            dialog.body(ui, body);
+        });
+        dialog.buttons(ui, |ui| {
+            dialog.button(ui, "Close");
+        });
+    });
+
+    return dialog;
+}
+
 /* TODO list:
  * - [X] Aplicar el diseño pensado
  * - [ ] Adaptar el código del programa CLI a la interfaz gráfica
  *     - [X] El proceso ahora se obtiene de la lista de procesos, al seleccionar uno, el botón de activar programa se pone enabled (disabled por defecto)
  *         - [X] Hay un botón para actualizar la lista de procesos
  *     - [X] El handler de CTRL+C ahora se elimina y el código que tenía ahora se ejecuta al salir del programa
- *     - [ ] La funcionalidad principal ahora se ejecuta al hacer click en el botón de activar programa, no al abrir la GUI
- *         - [ ] Al activar el programa, se hace uso de un nuevo hilo para ejecutar el programa ya que es un loop infinito
- *         - [ ] El texto del botón cambia a "Desactivar programa" y al pulsarlo, el hilo nuevo se muere
- *         - [ ] No se puede cambiar de proceso ni cambiar los volúmenes mientras el programa está activo
- *     - [ ] Los volúmenes ahora son editables, recordar que el volumen "NOT_IN_GAME" no puede ser cero
+ *     - [?] La funcionalidad principal ahora se ejecuta al hacer click en el botón de activar programa, no al abrir la GUI
+ *         - [?] Al activar el programa, se hace uso de un nuevo hilo para ejecutar el programa ya que es un loop infinito
+ *         - [?] El texto del botón cambia a "Desactivar programa" y al pulsarlo, el hilo nuevo se muere
+ *         - [?] No se puede cambiar de proceso ni cambiar los volúmenes mientras el programa está activo
+ *     - [?] Los volúmenes ahora son editables, recordar que el volumen "NOT_IN_GAME" no puede ser cero
  *     - [ ] El label de los volúmenes a ser posible que se muestre como porcentaje
- * - [ ] El test utilizado en el CLI se implementa como comprobador de que el programa funciona correctamente con una checkbox debajo del botón de activar (o en el menú de opciones)
+ * - [?] El test utilizado en el CLI se implementa como comprobador de que el programa funciona correctamente con una checkbox debajo del botón de activar (o en el menú de opciones)
  *     - [X] Al pulsar la checkbox, el botón ahora pone simular en vez de activar y al pulsarlo, se ejecuta el test y no se puede detener manualmente por lo que se desactiva el botón
  *     - [-] En el nombre del botón, mientras se está simulando, se explica en qué estado se está (por ejemplo, "Simulando: Fase de compra")
- *     - [ ] Al terminar el test, sale un dialog explicando que si se ha escuchado como cambiaba el volumen y si se ha pausado/reaunudado correctamente el video/música al tener el volumen a 0, está todo correcto
+ *     - [?] Al terminar el test, sale un dialog explicando que si se ha escuchado como cambiaba el volumen y si se ha pausado/reaunudado correctamente el video/música al tener el volumen a 0, está todo correcto
  * - [ ] En el menú de opciones, añadir una opción para ver los créditos e información (sección "Help")
  * - [ ] Cambiar el icono del programa
  */
