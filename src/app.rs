@@ -1,7 +1,7 @@
-use std::{sync::{atomic::AtomicBool, mpsc}, thread};
+use std::{sync::mpsc, thread};
 
 use windows_volume_control::{AudioController, CoinitMode};
-use stoppable_thread::{self, SimpleAtomicBool};
+use stoppable_thread;
 mod functions;
 
 // We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -92,6 +92,17 @@ impl eframe::App for TemplateApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let dialog = egui_modal::Modal::new(ctx, "dialog_simulation");
+        dialog.show(|ui| {
+            dialog.title(ui, "Simulation finished");
+            dialog.frame(ui, |ui| {
+                dialog.body(ui, "The simulation has finished. Please, check if the volume has changed correctly and if the media has been paused/resumed correctly.");
+            });
+            dialog.buttons(ui, |ui| {
+                dialog.button(ui, "Close");
+            });
+        });
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
 
@@ -232,17 +243,6 @@ impl eframe::App for TemplateApp {
                 self.button_label = get_activate_button_label(self.simulation_checked);
                 self.button_enabled = true;
                 self.program_active = false;
-
-                let dialog = egui_modal::Modal::new(ctx, "dialog_simulation_finished");
-                dialog.show(|ui| {
-                    dialog.title(ui, "Simulation finished");
-                    dialog.frame(ui, |ui| {
-                        dialog.body(ui, "The simulation has finished. Please, check if the volume has changed correctly and if the media has been paused/resumed correctly.");
-                    });
-                    dialog.buttons(ui, |ui| {
-                        dialog.button(ui, "Close");
-                    });
-                });
                 dialog.open();
             }
         }
