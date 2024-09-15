@@ -30,6 +30,9 @@ pub struct TemplateApp {
     simulation_checked: bool,
 
     #[serde(skip)]
+    about_clicked: bool,
+
+    #[serde(skip)]
     program_thread: Option<stoppable_thread::StoppableHandle<()>>,
     #[serde(skip)]
     receiver: Option<mpsc::Receiver<()>>,
@@ -59,6 +62,8 @@ impl Default for TemplateApp {
             button_label: "Select a process".to_owned(),
             program_active: false,
             simulation_checked: false,
+
+            about_clicked: false,
 
             program_thread: None,
             receiver: None,
@@ -99,13 +104,6 @@ impl eframe::App for TemplateApp {
             "The simulation has finished. Please, check if the volume has changed correctly and if the media has been paused/resumed correctly.".to_owned()
         );
 
-        let about_dialog = create_dialog(
-            ctx,
-            "dialog_about".to_owned(),
-            "About this program".to_owned(),
-            "Program made by TODO:".to_owned()
-        );
-
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
 
@@ -120,7 +118,7 @@ impl eframe::App for TemplateApp {
                     });
                     ui.menu_button("Help", |ui| {
                         if ui.button("About").clicked() {
-
+                            self.about_clicked = true;   
                         }
                     });
                     ui.add_space(16.0);
@@ -243,6 +241,27 @@ impl eframe::App for TemplateApp {
                     }
                 }
             });
+        });
+
+        egui::Window::new("About")
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut self.about_clicked)
+        .show(ctx, |ui| {
+            ui.label("Valorant Music Controller - By Sauleteh");
+            ui.add_space(8.0);
+            ui.label("Automatically pause/play and control the volume of your music depending on the state of the game you are in on Valorant.");
+            ui.add_space(8.0);
+            ui.colored_label(egui::Color32::from_rgb(0, 255, 0), "How to use?");
+            ui.add_space(4.0);
+            ui.label("1. Select the process of the media player you are using (Firefox, Spotify...).");
+            ui.label("2. Adjust the volumeto your liking for each state of the game.");
+            ui.label("3. Activate the program using the main button.");
+            ui.add_space(8.0);
+            ui.add(egui::Hyperlink::from_label_and_url(
+                "Source code (GitHub)",
+                "https://github.com/Sauleteh/valorant-music-controller-gui",
+            ));
         });
 
         // Receptor de mensajes del hilo secundario
