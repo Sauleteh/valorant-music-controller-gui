@@ -25,9 +25,9 @@ fn playOrPauseMedia() {
     let _ = enigo.key(Key::MediaPlayPause, enigo::Direction::Click);
 }
 
-fn updateVolume(prevState: u8, audio_controller: &mut AudioController, process_name: &mut String, volumes: [f32; 3]) {
-    let volume = volumes[getState() as usize];
-    let prevVolume = volumes[prevState as usize];
+fn updateVolume(prevState: u8, audio_controller: &mut AudioController, process_name: &mut String, volumes: [u8; 3]) {
+    let volume = volumes[getState() as usize] as f32 / 100.0;
+    let prevVolume = volumes[prevState as usize] as f32 / 100.0;
     println!("Setting volume from {} to {}", prevVolume, volume);
 
     unsafe {
@@ -86,7 +86,7 @@ fn analyzeText(line: &str) -> u8 {
     return getState(); // No se ha producido ningún cambio, se mantiene el estado actual.
 }
 
-fn watchFile(should_stop: &SimpleAtomicBool, audio_controller: &mut AudioController, process_name: &mut String, volumes: [f32; 3]) -> Result<()> {
+fn watchFile(should_stop: &SimpleAtomicBool, audio_controller: &mut AudioController, process_name: &mut String, volumes: [u8; 3]) -> Result<()> {
     let binding = std::env::var("LOCALAPPDATA").unwrap() + "\\VALORANT\\Saved\\Logs\\ShooterGame.log";
     // let binding = "D:\\Users\\Saulete\\Downloads\\test.txt";
     let path = Path::new(&binding);
@@ -125,7 +125,7 @@ fn watchFile(should_stop: &SimpleAtomicBool, audio_controller: &mut AudioControl
     Ok(())
 }
 
-pub fn main_function(should_stop: &SimpleAtomicBool, process_name: String, volumes: [f32; 3]) {
+pub fn main_function(should_stop: &SimpleAtomicBool, process_name: String, volumes: [u8; 3]) {
     // No se pueden pasar entre hilos el controlador de audio por lo que se inicializa aquí
     let mut audio_controller = unsafe { AudioController::init(Some(CoinitMode::ApartmentThreaded)) };
     unsafe {
@@ -139,7 +139,7 @@ pub fn main_function(should_stop: &SimpleAtomicBool, process_name: String, volum
 }
 
 // Simulamos una partida de prueba: Entro en una partida, empiezo a jugar, muero, me reviven, empieza una nueva ronda y termina la partida por surrender.
-pub fn simulate_match(process_name: String, volumes: [f32; 3]) {
+pub fn simulate_match(process_name: String, volumes: [u8; 3]) {
     let mut audio_controller = unsafe { AudioController::init(Some(CoinitMode::ApartmentThreaded)) };
     unsafe {
         audio_controller.GetSessions();

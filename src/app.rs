@@ -39,7 +39,7 @@ pub struct TemplateApp {
     #[serde(skip)]
     receiver: Option<mpsc::Receiver<()>>,
 
-    volumes: [f32; 3],
+    volumes: [u8; 3],
 }
 
 impl Default for TemplateApp {
@@ -71,7 +71,7 @@ impl Default for TemplateApp {
             program_thread: None,
             receiver: None,
 
-            volumes: [1.00, 0.50, 0.00],
+            volumes: [100, 50, 0],
         }
     }
 }
@@ -147,9 +147,9 @@ impl eframe::App for TemplateApp {
                     ui.style_mut().spacing.item_spacing = egui::vec2(0.0, 10.0);
                     ui.heading("Volume control");
                     ui.style_mut().spacing.item_spacing = egui::vec2(7.5, 8.0);
-                    ui.add_enabled(!self.program_active, egui::Slider::new(&mut self.volumes[0], 0.01..=1.00).max_decimals(2).text("Not in game"));
-                    ui.add_enabled(!self.program_active, egui::Slider::new(&mut self.volumes[1], 0.00..=1.00).max_decimals(2).text("In game: Buy phase"));
-                    ui.add_enabled(!self.program_active, egui::Slider::new(&mut self.volumes[2], 0.00..=1.00).max_decimals(2).text("In game: Playing"));
+                    ui.add_enabled(!self.program_active, egui::Slider::new(&mut self.volumes[0], 1..=100).max_decimals(0).text("Not in game").custom_formatter(|value, _| format!("{}%", value)));
+                    ui.add_enabled(!self.program_active, egui::Slider::new(&mut self.volumes[1], 0..=100).max_decimals(0).text("In game: Buy phase").custom_formatter(|value, _| format!("{}%", value)));
+                    ui.add_enabled(!self.program_active, egui::Slider::new(&mut self.volumes[2], 0..=100).max_decimals(0).text("In game: Playing").custom_formatter(|value, _| format!("{}%", value)));
                 });
                 ui.add(egui::Separator::default().vertical());
                 ui.vertical(|ui| {
@@ -248,7 +248,6 @@ impl eframe::App for TemplateApp {
                     else { // Se desactivó el programa
                         self.button_label = "Stopping program...".to_owned();
                         self.button_enabled = false;
-                        // FIXME: Adaptar el hilo para que funcione con el nuevo sistema (el de la simulación)
                         self.program_thread.take().unwrap().stop().join().unwrap(); // Esperar a que el hilo termine
                         self.button_label = get_activate_button_label(self.simulation_checked);
                         self.button_enabled = true;
@@ -346,16 +345,16 @@ fn create_dialog(ctx: &egui::Context, id: String, title: String, body: String) -
 
 /* TODO list:
  * - [X] Aplicar el diseño pensado
- * - [ ] Adaptar el código del programa CLI a la interfaz gráfica
+ * - [X] Adaptar el código del programa CLI a la interfaz gráfica
  *     - [X] El proceso ahora se obtiene de la lista de procesos, al seleccionar uno, el botón de activar programa se pone enabled (disabled por defecto)
  *         - [X] Hay un botón para actualizar la lista de procesos
  *     - [X] El handler de CTRL+C ahora se elimina y el código que tenía ahora se ejecuta al salir del programa
- *     - [?] La funcionalidad principal ahora se ejecuta al hacer click en el botón de activar programa, no al abrir la GUI
+ *     - [X] La funcionalidad principal ahora se ejecuta al hacer click en el botón de activar programa, no al abrir la GUI
  *         - [X] Al activar el programa, se hace uso de un nuevo hilo para ejecutar el programa ya que es un loop infinito
- *         - [ ] El texto del botón cambia a "Desactivar programa" y al pulsarlo, el hilo nuevo se muere
+ *         - [X] El texto del botón cambia a "Desactivar programa" y al pulsarlo, el hilo nuevo se muere
  *         - [X] No se puede cambiar de proceso ni cambiar los volúmenes mientras el programa está activo
  *     - [X] Los volúmenes ahora son editables, recordar que el volumen "NOT_IN_GAME" no puede ser cero
- *     - [ ] El label de los volúmenes a ser posible que se muestre como porcentaje
+ *     - [X] El label de los volúmenes a ser posible que se muestre como porcentaje
  * - [X] El test utilizado en el CLI se implementa como comprobador de que el programa funciona correctamente con una checkbox debajo del botón de activar (o en el menú de opciones)
  *     - [X] Al pulsar la checkbox, el botón ahora pone simular en vez de activar y al pulsarlo, se ejecuta el test y no se puede detener manualmente por lo que se desactiva el botón
  *     - [-] En el nombre del botón, mientras se está simulando, se explica en qué estado se está (por ejemplo, "Simulando: Fase de compra")
