@@ -161,15 +161,3 @@ pub fn simulate_match(process_name: String, volumes: [u8; 3]) {
         sleep(Duration::from_secs(1));
     }
 }
-
-/* TODO list:
- * - [X] Al actualizar el estado, se actualiza también el volumen (Implementar updateVolume)
- * - [X] Implementar el sistema de volumen
- *     - [X] Suponemos que pausar y reanudar la música es sencillo: es una combinación de teclas (MediaPlayPause) y se hace al llegar/salir del volumen 0.
- *     - [X] Controlar el volumen se hará mediante el control de volumen del sistema
- *     - [X] Se le da a elegir al usuario cual es la aplicación la cual se le va a controlar el volumen
- *     - [X] El volumen que se tenía antes del programa se recupera al cerrar el programa
- *     - [X] Además, el volumen se hace de forma gradual, no instantánea
- * - [X] Comprobar que funciona correctamente en una partida real
- * - [ ] Pasar la aplicación a EGUI
- */
